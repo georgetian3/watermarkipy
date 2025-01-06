@@ -1,0 +1,22 @@
+[project]
+
+name = "watermarkipy"
+version = "0.0.1"
+
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.txt" }
+
+
+authors = [{ name = "George Tian", email = "me@georgetian.com" }]
+maintainers = [{ name = "George Tian", email = "me@georgetian.com" }]
+
+dependencies = ["pillow"]
+
+
+[project.urls]
+"Homepage" = "https://github.com/georgetian3/watermarkipy"
+"Bug Reports" = "https://github.com/georgetian3/watermarkipy/issues"
+# "Funding" = "https://donate.pypi.org"
+# "Say Thanks!" = "http://saythanks.io/to/example"
+"Source" = "https://github.com/georgetian3/watermarkipy"
