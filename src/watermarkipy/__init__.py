@@ -1,7 +1,8 @@
 from typing import Literal
 from PIL.ImageFilter import GaussianBlur
 from PIL.Image import Image, new
-from PIL import ImageDraw, ImageFont
+from PIL.ImageDraw import Draw
+from PIL.ImageFont import truetype
 
 
 def shrink(image: Image, scale: float = 1) -> None:
@@ -49,17 +50,35 @@ ALPHA_MODE = "RGBA"
     watermark_repeat: bool = Field(default=True)
 '''
 
-_pos_anchor_map = {
+_pos_map = {
     "x": {
-        "left": "l",
-        "middle": "m",
-        "right": "r",
+        "left": {
+            "anchor": "l",
+            "pos": lambda image: 0
+        },
+        "middle": {
+            "anchor": "m",
+            "pos": lambda image: image.width / 2
+        },
+        "right": {
+            "anchor": "r",
+            "pos": lambda image: image.width
+        },
     },
     "y": {
-        "top": "a",
-        "middle": "m",
-        "bottom": "d"
-    }
+        "top": {
+            "anchor": "a",
+            "pos": lambda image: 0
+        },
+        "middle": {
+            "anchor": "m",
+            "pos": lambda image: image.height / 2
+        },
+        "bottom": {
+            "anchor": "d",
+            "pos": lambda image: image.height
+        },
+    },
 }
 
 
@@ -68,11 +87,12 @@ def watermark(
     text: str,
     font: str,
     font_size: float | None = None,
-    angle: float = 0.0,
     x: int | Literal["left", "middle", "right"] = "middle",
     y: int | Literal["top", "middle", "bottom"] = "middle",
     anchor: str = '',
     repeat: bool = False,
+    repeat_spacing_x: int | None = None,
+    repeat_spacing_y: int | None = None,
     color: tuple[int] = (255, 255, 255),
 ) -> Image:
     """
@@ -89,64 +109,81 @@ def watermark(
     :param repeat: whether the watermark is repeated to fill the entire image
     :param color: 3/4-tuple of R, G, B, and A (optional) values representing the text's color
     :returns: copy of image containing watermark
-    
     """
-    if text == "" or font_size == 0:
+    if text == "" or font_size == 0 or len(color) == 4 and color[3] == 0:
         return image
     
     if font_size is None:
         font_size = min(image.width, image.height) / 10
     
     if len(color) not in (3, 4) or not all(0 <= x <= 255 for x in color):
-        raise f"Invalid color: {color}"
+        raise ValueError(f"Invalid color: {color}")
     
     if not anchor:
         def get_anchor(pos, pos_str):
             if not isinstance(x, str):
                 return "m"
             try:
-                return _pos_anchor_map[pos_str][pos]
+                return _pos_map[pos_str][pos]["anchor"]
             except KeyError:
-                raise Exception(f"Invalid relative {pos_str} position: {pos}")
+                raise ValueError(f"Invalid relative {pos_str} position: {pos}")
         anchor = f"{get_anchor(x, "x")}{get_anchor(y, "y")}"
 
     if isinstance(x, str):
-        if x == "left":
-            x = 0
-        elif x == "middle":
-            x = image.width / 2
-        elif x == "right":
-            x = image.width
-        else:
+        try:
+            x = _pos_map["x"][x]["pos"](image)
+        except KeyError:
             raise Exception(f"Invalid relative x position: {x}")
-    
+        
     if isinstance(y, str):
-        if y == "top":
-            y = 0
-        elif y == "middle":
-            y = image.height / 2
-        elif y == "bottom":
-            y = image.height
-        else:
+        try:
+            y = _pos_map["y"][y]["pos"](image)
+        except KeyError:
             raise Exception(f"Invalid relative y position: {y}")
     
     
-    old_mode = None
     if (old_mode := image.mode) != ALPHA_MODE:
         image = image.convert(ALPHA_MODE)
 
     watermark = new(ALPHA_MODE, image.size, (0, 0, 0, 0))
 
 
+    pil_font = truetype(font, size=font_size)
 
-    font = ImageFont.truetype(font, size=font_size)
-    ImageDraw.Draw(watermark).text(
-        xy=(x, y),
-        text=text,
-        fill=color,
-        font=font,
-        anchor=anchor,
-    )
+    xys = [(x, y)]
+
+    if repeat:
+        def get_default_spacing():
+            dx1, dy1, dx2, dy2 = pil_font.getbbox("x")
+            return abs(dx1 - dx2), abs(dy1 - dy2)
+        default_spacing = get_default_spacing()
+        if repeat_spacing_x is None:
+            repeat_spacing_x = default_spacing[0]
+        if repeat_spacing_y is None:
+            repeat_spacing_y = default_spacing[1]
+        dx1, dy1, dx2, dy2 = pil_font.getbbox(
+            text=text,
+            anchor=anchor
+        )
+        dx, dy = abs(dx1 - dx2), abs(dy1 - dy2)
+        repeat_count = int(max(image.width / dx, image.height / dy))
+        # x1, y1, x2, y2 = x + dx1, y + dy1, x + dx2, y + dy2
+        for i in range(repeat_count):
+            for j in range(repeat_count):
+                xys.append((x + (dx + repeat_spacing_x) * i, y + (dy + repeat_spacing_y) * j))
+                xys.append((x + (dx + repeat_spacing_x) * i, y - (dy + repeat_spacing_y) * j))
+                xys.append((x - (dx + repeat_spacing_x) * i, y + (dy + repeat_spacing_y) * j))
+                xys.append((x - (dx + repeat_spacing_x) * i, y - (dy + repeat_spacing_y) * j))
+
+    draw = Draw(watermark)
+    for xy in xys:
+        draw.text(
+            xy=xy,
+            text=text,
+            fill=color,
+            font=pil_font,
+            anchor=anchor,
+        )
 
     Image.alpha_composite(image, watermark)
     if old_mode != ALPHA_MODE:

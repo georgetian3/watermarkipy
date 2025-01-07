@@ -1,18 +1,17 @@
 [project]
-
 name = "watermarkipy"
 version = "0.0.1"
-
 readme = "README.md"
 requires-python = ">=3.9"
-license = { file = "LICENSE.txt" }
-
-
+license = { file = "LICENSE" }
 authors = [{ name = "George Tian", email = "me@georgetian.com" }]
 maintainers = [{ name = "George Tian", email = "me@georgetian.com" }]
-
-dependencies = ["pillow"]
-
+dependencies = ["pillow >= 11.1.0"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/georgetian3/watermarkipy"
@@ -20,3 +19,7 @@ dependencies = ["pillow"]
 # "Funding" = "https://donate.pypi.org"
 # "Say Thanks!" = "http://saythanks.io/to/example"
 "Source" = "https://github.com/georgetian3/watermarkipy"
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
